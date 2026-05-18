@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: yoyo-backend
+    runtime: docker
+    plan: standard
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: SCRAPINGDOG_API_KEY
+        sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
+      - key: YOYO_CORS_ORIGINS
+        value: "https://yoyo-web-brown.vercel.app,*"
