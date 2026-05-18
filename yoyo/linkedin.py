@@ -59,6 +59,11 @@ def fetch_linkedin(slug: str, api_key: str | None = None, premium: bool = True,
                     "premium": "true" if premium else "false"},
             timeout=60,
         )
+        if r.status_code == 429:
+            time.sleep(5)
+            if time.time() > deadline:
+                raise RuntimeError(f"ScrapingDog LinkedIn rate-limited for {slug}")
+            continue
         try:
             d = r.json()
         except Exception:

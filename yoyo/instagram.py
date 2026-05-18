@@ -53,9 +53,17 @@ class IGProfile:
 
 
 def fetch_instagram(username: str, api_key: str | None = None) -> IGProfile:
+    import time
     api_key = api_key or os.environ["SCRAPINGDOG_API_KEY"]
-    r = requests.get(SCRAPINGDOG_URL, params={"api_key": api_key, "username": username}, timeout=30)
-    r.raise_for_status()
+    for attempt in range(5):
+        r = requests.get(SCRAPINGDOG_URL, params={"api_key": api_key, "username": username}, timeout=30)
+        if r.status_code == 429:
+            time.sleep(2 + attempt * 3)  # 2,5,8,11,14
+            continue
+        r.raise_for_status()
+        break
+    else:
+        raise RuntimeError(f"ScrapingDog rate-limited after retries for {username}")
     d = r.json()
     if not d.get("username"):
         raise RuntimeError(f"ScrapingDog returned no profile for {username}: {d}")
