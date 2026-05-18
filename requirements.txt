@@ -1,6 +1,6 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
-requests==2.32.3
+requests==2.32.4
 rapidfuzz==3.9.7
 python-dotenv==1.0.1
 boto3==1.35.50
