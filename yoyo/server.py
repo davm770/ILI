@@ -5,12 +5,14 @@ import traceback
 from dataclasses import asdict
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 load_dotenv()
 
 from .match import match
+from .photo_match import get_image, match_by_photo
 
 app = FastAPI(title="yoyo")
 app.add_middleware(
@@ -39,6 +41,31 @@ def do_match(username: str, use_face: bool | None = None, use_maigret: bool | No
             use_maigret=_DEFAULT_MAIGRET if use_maigret is None else use_maigret,
         )
         return asdict(r)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+
+
+@app.get("/uploads/{key}")
+def serve_upload(key: str):
+    v = get_image(key)
+    if not v:
+        raise HTTPException(status_code=404, detail="expired or unknown")
+    data, ct = v
+    return Response(content=data, media_type=ct)
+
+
+@app.post("/match-photo")
+async def do_match_photo(request: Request, file: UploadFile = File(...)):
+    data = await file.read()
+    if not data or len(data) < 1024:
+        raise HTTPException(status_code=400, detail="image too small")
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="image too large (>8MB)")
+    public_base = os.environ.get("YOYO_PUBLIC_BASE_URL") or str(request.base_url).rstrip("/")
+    try:
+        result = match_by_photo(data, public_base_url=public_base, content_type=file.content_type or "image/jpeg")
+        return result.to_dict()
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
