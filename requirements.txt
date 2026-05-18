@@ -3,8 +3,5 @@ uvicorn[standard]==0.30.6
 requests==2.32.3
 rapidfuzz==3.9.7
 python-dotenv==1.0.1
-pillow==10.4.0
-numpy==1.26.4
-insightface==0.7.3
-onnxruntime==1.19.2
+boto3==1.35.50
 maigret==0.6.1

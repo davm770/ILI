@@ -1,52 +1,53 @@
 from __future__ import annotations
 
-import io
+import os
 from functools import lru_cache
 
-import numpy as np
+import boto3
 import requests
-from PIL import Image
+from botocore.exceptions import ClientError
 
 _HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 
 @lru_cache(maxsize=1)
-def _app():
-    import insightface
-    from insightface.app import FaceAnalysis
-    a = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-    a.prepare(ctx_id=-1, det_size=(640, 640))
-    return a
+def _rekog():
+    return boto3.client("rekognition", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
 
-def _img(url: str) -> np.ndarray | None:
+def fetch_bytes(url: str | None) -> bytes | None:
     if not url:
         return None
     try:
-        r = requests.get(url, timeout=30, headers=_HEADERS)
+        r = requests.get(url, headers=_HEADERS, timeout=20)
         r.raise_for_status()
-        im = Image.open(io.BytesIO(r.content)).convert("RGB")
-        return np.array(im)[:, :, ::-1]  # RGB -> BGR for insightface
+        return r.content
     except Exception:
         return None
 
 
-def embed(url: str) -> np.ndarray | None:
-    arr = _img(url)
-    if arr is None:
+def compare(source_bytes: bytes | None, target_url: str | None) -> float | None:
+    """Return similarity in [0,1] between source face and target image, or None if either has no face / fetch failed."""
+    if source_bytes is None:
+        return None
+    target = fetch_bytes(target_url)
+    if target is None:
         return None
     try:
-        faces = _app().get(arr)
+        resp = _rekog().compare_faces(
+            SourceImage={"Bytes": source_bytes},
+            TargetImage={"Bytes": target},
+            SimilarityThreshold=0,
+        )
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code", "")
+        # InvalidParameterException = no face detected in one of the images
+        if code in ("InvalidParameterException", "InvalidImageFormatException", "ImageTooLargeException"):
+            return None
+        raise
     except Exception:
         return None
-    if not faces:
-        return None
-    faces.sort(key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]), reverse=True)
-    return faces[0].normed_embedding
-
-
-def cosine(a: np.ndarray | None, b: np.ndarray | None) -> float | None:
-    if a is None or b is None:
-        return None
-    sim = float(np.dot(a, b))
-    return (sim + 1.0) / 2.0  # map [-1,1] to [0,1]
+    matches = resp.get("FaceMatches") or []
+    if not matches:
+        return 0.0
+    return float(matches[0]["Similarity"]) / 100.0

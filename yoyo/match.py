@@ -4,7 +4,7 @@ import re as _re
 from dataclasses import dataclass, field, asdict
 
 from .cross_platform import run_maigret
-from .faces import cosine, embed
+from .faces import compare, fetch_bytes
 from .instagram import IGProfile, fetch_instagram
 from .linkedin import LIProfile, fetch_linkedin, li_text_blob
 from .reverse_image import reverse_image_linkedin_slugs
@@ -55,8 +55,7 @@ def _score(ig: IGProfile, li: LIProfile, ig_face=None, use_face: bool = True,
     b = bio_overlap(_ig_text(ig, extra_bios), li_text_blob(li))
     face_val = None
     if use_face:
-        li_face = embed(li.profile_pic_url)
-        face_val = cosine(ig_face, li_face)
+        face_val = compare(ig_face, li.profile_pic_url)
     return combine(n, s, b, face_val)
 
 
@@ -101,7 +100,7 @@ def match(username: str, top_k: int = 5, use_face: bool = True,
     if slug:
         notes.append(f"linkedin slug found in bio/caption: {slug}")
         li = fetch_linkedin(slug)
-        sc = _score(ig, li, ig_face=embed(ig.profile_pic_url) if use_face else None,
+        sc = _score(ig, li, ig_face=fetch_bytes(ig.profile_pic_url) if use_face else None,
                     use_face=use_face, extra_names=cps.fullnames if cps else None,
                     extra_bios=cps.bios if cps else None)
         return MatchResult(ig.username, ig.full_name, li.url,
@@ -113,7 +112,7 @@ def match(username: str, top_k: int = 5, use_face: bool = True,
         slug = cps.direct_linkedin_slugs[0]
         notes.append(f"using LI slug from maigret: {slug}")
         li = fetch_linkedin(slug)
-        sc = _score(ig, li, ig_face=embed(ig.profile_pic_url) if use_face else None,
+        sc = _score(ig, li, ig_face=fetch_bytes(ig.profile_pic_url) if use_face else None,
                     use_face=use_face, extra_names=cps.fullnames, extra_bios=cps.bios)
         return MatchResult(ig.username, ig.full_name, li.url,
                            confidence=max(sc.combined, 0.85), label="confident",
@@ -124,7 +123,7 @@ def match(username: str, top_k: int = 5, use_face: bool = True,
     if slug:
         notes.append(f"linkedin slug found via external link follow: {slug}")
         li = fetch_linkedin(slug)
-        sc = _score(ig, li, ig_face=embed(ig.profile_pic_url) if use_face else None,
+        sc = _score(ig, li, ig_face=fetch_bytes(ig.profile_pic_url) if use_face else None,
                     use_face=use_face, extra_names=cps.fullnames if cps else None,
                     extra_bios=cps.bios if cps else None)
         return MatchResult(ig.username, ig.full_name, li.url,
@@ -137,7 +136,7 @@ def match(username: str, top_k: int = 5, use_face: bool = True,
         if ri_slugs:
             notes.append(f"reverse image search hits: {ri_slugs}")
             li = fetch_linkedin(ri_slugs[0])
-            sc = _score(ig, li, ig_face=embed(ig.profile_pic_url) if use_face else None,
+            sc = _score(ig, li, ig_face=fetch_bytes(ig.profile_pic_url) if use_face else None,
                         use_face=use_face, extra_names=cps.fullnames if cps else None,
                         extra_bios=cps.bios if cps else None)
             return MatchResult(ig.username, ig.full_name, li.url,
@@ -174,7 +173,7 @@ def match(username: str, top_k: int = 5, use_face: bool = True,
     notes.append(f"queries used: {[q for q,_ in queries]}")
     notes.append(f"search candidates: {[c.slug for c in cands]}")
 
-    ig_face = embed(ig.profile_pic_url) if use_face else None
+    ig_face = fetch_bytes(ig.profile_pic_url) if use_face else None
     if use_face and ig_face is None:
         notes.append("no face detected in IG profile pic; face scoring disabled")
 
